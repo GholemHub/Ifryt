@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
+
+
 #include "IfrytCharacter.generated.h"
 
 class UInputComponent;
@@ -51,6 +53,7 @@ protected:
 	
 public:
 	AIfrytCharacter();
+
 
 protected:
 

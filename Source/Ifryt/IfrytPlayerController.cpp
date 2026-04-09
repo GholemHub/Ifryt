@@ -16,6 +16,11 @@ AIfrytPlayerController::AIfrytPlayerController()
 	PlayerCameraManagerClass = AIfrytCameraManager::StaticClass();
 }
 
+FGenericTeamId AIfrytPlayerController::GetGenericTeamId() const
+{
+	return FGenericTeamId(0);
+}
+
 void AIfrytPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
