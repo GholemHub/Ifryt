@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "GenericTeamAgentInterface.h"
 #include "IfrytPlayerController.generated.h"
 
 class UInputMappingContext;
@@ -15,7 +16,7 @@ class UUserWidget;
  *  Overrides the Player Camera Manager class.
  */
 UCLASS(abstract, config="Game")
-class IFRYT_API AIfrytPlayerController : public APlayerController
+class IFRYT_API AIfrytPlayerController : public APlayerController, public IGenericTeamAgentInterface
 {
 	GENERATED_BODY()
 	
@@ -23,7 +24,7 @@ public:
 
 	/** Constructor */
 	AIfrytPlayerController();
-
+	virtual FGenericTeamId GetGenericTeamId() const override;
 protected:
 
 	/** Input Mapping Contexts */
