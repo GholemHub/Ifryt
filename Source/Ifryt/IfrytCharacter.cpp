@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "IfrytCharacter.h"
 #include "Animation/AnimInstance.h"
@@ -43,6 +43,9 @@ AIfrytCharacter::AIfrytCharacter()
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
 	GetCharacterMovement()->AirControl = 0.5f;
 }
+
+
+
 
 void AIfrytCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {	
