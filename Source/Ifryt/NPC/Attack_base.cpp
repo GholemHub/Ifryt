@@ -1,13 +1,12 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "NPC/Attack_base.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 
 UAttack_base::UAttack_base()
 {
-    PrimaryComponentTick.bCanEverTick = false; // not needed
+    PrimaryComponentTick.bCanEverTick = false;
 }
 
 void UAttack_base::BeginPlay()
@@ -17,7 +16,6 @@ void UAttack_base::BeginPlay()
     AActor* Owner = GetOwner();
     if (!Owner) return;
 
-    // Create FirePoint once, attach to owner root, apply offset
     FirePoint = NewObject<USceneComponent>(Owner, TEXT("FirePoint"));
     FirePoint->RegisterComponent();
     FirePoint->AttachToComponent(
@@ -53,15 +51,9 @@ void UAttack_base::Fire()
     if (bAimAtPlayer)
     {
         APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-        if (Player)
-        {
-            FireDirection = (Player->GetActorLocation() - SpawnLocation)
-                .GetSafeNormal();
-        }
-        else
-        {
-            FireDirection = Owner->GetActorForwardVector(); // fallback
-        }
+        FireDirection = Player
+            ? (Player->GetActorLocation() - SpawnLocation).GetSafeNormal()
+            : Owner->GetActorForwardVector();
     }
     else
     {
@@ -70,13 +62,7 @@ void UAttack_base::Fire()
 
     const FRotator SpawnRotation = FireDirection.Rotation();
 
-    UE_LOG(LogTemp, Log,
-        TEXT("Fire — loc: %s  dir: %s  class: %s"),
-        *SpawnLocation.ToString(),
-        *FireDirection.ToString(),
-        *GetNameSafe(ProjectileClass));
-
-    // ── Spawn ──────────────────────────────────────────────────
+    // ── Spawn ─────────────────────────────────────────────────
     FActorSpawnParameters Params;
     Params.Owner = Owner;
     Params.Instigator = Owner->GetInstigator();
@@ -93,40 +79,56 @@ void UAttack_base::Fire()
         return;
     }
 
-    // ── Apply velocity / impulse ───────────────────────────────
-    const FVector LaunchVelocity = FireDirection * ProjectileSpeed;
+    // ── Bind collision → destroy ───────────────────────────────
+    if (UPrimitiveComponent* Root =
+        Cast<UPrimitiveComponent>(Projectile->GetRootComponent()))
+    {
+        Root->SetNotifyRigidBodyCollision(true);
+    }
 
-    // Path A — ProjectileMovementComponent (preferred)
+    Projectile->OnActorHit.AddDynamic(this, &UAttack_base::OnProjectileHit);
+
+    // ── Configure straight flight ──────────────────────────────
     UProjectileMovementComponent* ProjMove =
         Projectile->FindComponentByClass<UProjectileMovementComponent>();
 
     if (ProjMove)
     {
-        ProjMove->Velocity = LaunchVelocity;
+        ProjMove->Velocity = FireDirection * ProjectileSpeed;
+        ProjMove->InitialSpeed = ProjectileSpeed;
         ProjMove->MaxSpeed = ProjectileSpeed;
-        UE_LOG(LogTemp, Log, TEXT("[ProjMove] velocity set: %s"), *LaunchVelocity.ToString());
+        ProjMove->ProjectileGravityScale = 0.f;
+        ProjMove->bShouldBounce = false;
+        ProjMove->Activate(true);
+
+        UE_LOG(LogTemp, Log,
+            TEXT("Fire — vel: %s"), *ProjMove->Velocity.ToString());
     }
-    // Path B — Physics impulse on StaticMesh (your current BP setup)
     else
     {
-        UStaticMeshComponent* Mesh =
-            Projectile->FindComponentByClass<UStaticMeshComponent>();
+        UE_LOG(LogTemp, Warning,
+            TEXT("Projectile %s has no UProjectileMovementComponent!"),
+            *Projectile->GetName());
+    }
+}
 
-        if (Mesh && Mesh->IsSimulatingPhysics())
-        {
-            Mesh->AddImpulse(LaunchVelocity, NAME_None, /*bVelChange=*/true);
-            UE_LOG(LogTemp, Log, TEXT("[Impulse] applied: %s"), *LaunchVelocity.ToString());
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning,
-                TEXT("Projectile %s has no movement path — enable Simulate Physics on mesh!"),
-                *Projectile->GetName());
-        }
+void UAttack_base::OnProjectileHit(AActor* SelfActor, AActor* OtherActor,
+    FVector NormalImpulse, const FHitResult& Hit)
+{
+    if (!SelfActor) return;
+
+    if (OtherActor && OtherActor != SelfActor)
+    {
+        UGameplayStatics::ApplyDamage(
+            OtherActor,
+            DamageAmount,              // float you define in component
+            GetOwner()->GetInstigatorController(),
+            SelfActor,
+            UDamageType::StaticClass()
+        );
+
+        UE_LOG(LogTemp, Warning, TEXT("Projectile Damaged"));
     }
 
-
-    UE_LOG(LogTemp, Log,
-        TEXT("Spawned: %s  velocity: %s"),
-        *Projectile->GetName(), *LaunchVelocity.ToString());
+    SelfActor->Destroy();
 }
