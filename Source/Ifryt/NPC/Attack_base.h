@@ -33,11 +33,17 @@ public:
     /** If true, aims toward player. If false, uses owner forward. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attack")
     bool bAimAtPlayer = true;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attack")
+    float DamageAmount = 30;
 
     UFUNCTION(BlueprintCallable, Category = "Attack")
     void Fire();
 
 private:
+    UFUNCTION()
+    void OnProjectileHit(AActor* SelfActor, AActor* OtherActor,
+        FVector NormalImpulse, const FHitResult& Hit);
+
     /** Created once in BeginPlay, attached to owner root */
     UPROPERTY()
     USceneComponent* FirePoint = nullptr;
