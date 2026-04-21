@@ -1,16 +1,13 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "NPC/Attack_base.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 
-// Sets default values for this component's properties
 UAttack_base::UAttack_base()
 {
-    PrimaryComponentTick.bCanEverTick = true;
-
-    FirePoint = nullptr; // IMPORTANT
+    PrimaryComponentTick.bCanEverTick = false; // not needed
 }
 
 void UAttack_base::BeginPlay()
@@ -20,72 +17,116 @@ void UAttack_base::BeginPlay()
     AActor* Owner = GetOwner();
     if (!Owner) return;
 
-    if (!FirePoint)
-    {
-        FirePoint = NewObject<USceneComponent>(Owner, TEXT("FirePoint"));
-        FirePoint->RegisterComponent();
+    // Create FirePoint once, attach to owner root, apply offset
+    FirePoint = NewObject<USceneComponent>(Owner, TEXT("FirePoint"));
+    FirePoint->RegisterComponent();
+    FirePoint->AttachToComponent(
+        Owner->GetRootComponent(),
+        FAttachmentTransformRules::KeepRelativeTransform
+    );
+    FirePoint->SetRelativeLocation(FirePointOffset);
 
-        FirePoint->AttachToComponent(
-            Owner->GetRootComponent(),
-            FAttachmentTransformRules::KeepRelativeTransform
-        );
-
-        FirePoint->SetRelativeLocation(FVector(100, 0, 50));
-    }
-}
-
-
-// Called every frame
-void UAttack_base::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	// ...
+    UE_LOG(LogTemp, Log,
+        TEXT("Attack_base: FirePoint created at world loc %s"),
+        *FirePoint->GetComponentLocation().ToString());
 }
 
 void UAttack_base::Fire()
 {
-    if (!ProjectileClass || !FirePoint)
+    // ── Guards ────────────────────────────────────────────────
+    AActor* Owner = GetOwner();
+    if (!Owner || !FirePoint || !ProjectileClass || !GetWorld())
     {
-        UE_LOG(LogTemp, Warning, TEXT("FirePoint or ProjectileClass is NULL"));
+        UE_LOG(LogTemp, Warning,
+            TEXT("Fire aborted — Owner:%s FirePoint:%s Class:%s World:%s"),
+            Owner ? TEXT("OK") : TEXT("NULL"),
+            FirePoint ? TEXT("OK") : TEXT("NULL"),
+            ProjectileClass ? TEXT("OK") : TEXT("NULL"),
+            GetWorld() ? TEXT("OK") : TEXT("NULL"));
         return;
     }
 
-    UWorld* World = GetWorld();
-    if (!World) return;
+    // ── Compute spawn location & direction ────────────────────
+    const FVector SpawnLocation = FirePoint->GetComponentLocation();
 
-    FVector SpawnLocation = FirePoint->GetComponentLocation();
-    FRotator SpawnRotation;
-
-    if (bUseFirePointRotation)
+    FVector FireDirection;
+    if (bAimAtPlayer)
     {
-        SpawnRotation = FirePoint->GetComponentRotation();
+        APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+        if (Player)
+        {
+            FireDirection = (Player->GetActorLocation() - SpawnLocation)
+                .GetSafeNormal();
+        }
+        else
+        {
+            FireDirection = Owner->GetActorForwardVector(); // fallback
+        }
     }
     else
     {
-        SpawnRotation = GetOwner()->GetActorRotation();
+        FireDirection = Owner->GetActorForwardVector();
     }
 
+    const FRotator SpawnRotation = FireDirection.Rotation();
+
+    UE_LOG(LogTemp, Log,
+        TEXT("Fire — loc: %s  dir: %s  class: %s"),
+        *SpawnLocation.ToString(),
+        *FireDirection.ToString(),
+        *GetNameSafe(ProjectileClass));
+
+    // ── Spawn ──────────────────────────────────────────────────
     FActorSpawnParameters Params;
-    Params.Owner = GetOwner();
-    Params.Instigator = GetOwner()->GetInstigator();
+    Params.Owner = Owner;
+    Params.Instigator = Owner->GetInstigator();
+    Params.SpawnCollisionHandlingOverride =
+        ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-    AActor* Projectile = World->SpawnActor<AActor>(
-        ProjectileClass,
-        SpawnLocation,
-        SpawnRotation,
-        Params
-    );
+    AActor* Projectile = GetWorld()->SpawnActor<AActor>(
+        ProjectileClass, SpawnLocation, SpawnRotation, Params);
 
-    if (!Projectile) return;
+    if (!Projectile)
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("SpawnActor failed for %s"), *GetNameSafe(ProjectileClass));
+        return;
+    }
 
-    // Try to set velocity if it has ProjectileMovementComponent
-    UProjectileMovementComponent* Movement =
+    // ── Apply velocity / impulse ───────────────────────────────
+    const FVector LaunchVelocity = FireDirection * ProjectileSpeed;
+
+    // Path A — ProjectileMovementComponent (preferred)
+    UProjectileMovementComponent* ProjMove =
         Projectile->FindComponentByClass<UProjectileMovementComponent>();
 
-    if (Movement)
+    if (ProjMove)
     {
-        FVector Direction = SpawnRotation.Vector();
-        Movement->Velocity = Direction * ProjectileSpeed;
+        ProjMove->Velocity = LaunchVelocity;
+        ProjMove->MaxSpeed = ProjectileSpeed;
+        UE_LOG(LogTemp, Log, TEXT("[ProjMove] velocity set: %s"), *LaunchVelocity.ToString());
     }
+    // Path B — Physics impulse on StaticMesh (your current BP setup)
+    else
+    {
+        UStaticMeshComponent* Mesh =
+            Projectile->FindComponentByClass<UStaticMeshComponent>();
+
+        if (Mesh && Mesh->IsSimulatingPhysics())
+        {
+            Mesh->AddImpulse(LaunchVelocity, NAME_None, /*bVelChange=*/true);
+            UE_LOG(LogTemp, Log, TEXT("[Impulse] applied: %s"), *LaunchVelocity.ToString());
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning,
+                TEXT("Projectile %s has no movement path — enable Simulate Physics on mesh!"),
+                *Projectile->GetName());
+        }
+    }
+
+
+    UE_LOG(LogTemp, Log,
+        TEXT("Spawned: %s  velocity: %s"),
+        *Projectile->GetName(), *LaunchVelocity.ToString());
 }
