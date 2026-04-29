@@ -17,6 +17,16 @@ struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
+
+UENUM(BlueprintType)
+enum class EMovementState : uint8
+{
+	Walking     UMETA(DisplayName = "Walking"),
+	Sprinting   UMETA(DisplayName = "Sprinting"),
+	Crouching   UMETA(DisplayName = "Crouching"),
+	Sliding     UMETA(DisplayName = "Sliding")
+};
+
 /**
  *  A basic first person character
  */
@@ -53,6 +63,10 @@ protected:
 	
 public:
 	AIfrytCharacter();
+
+public:
+	UPROPERTY(BlueprintReadWrite, Category = "Movement")
+	EMovementState MovementState = EMovementState::Walking;
 
 
 protected:

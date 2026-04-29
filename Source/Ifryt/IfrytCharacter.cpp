@@ -102,9 +102,8 @@ void AIfrytCharacter::DoAim(float Yaw, float Pitch)
 
 void AIfrytCharacter::DoMove(float Right, float Forward)
 {
-	if (GetController())
+	if (GetController() && MovementState != EMovementState::Sliding)
 	{
-		// pass the move inputs
 		AddMovementInput(GetActorRightVector(), Right);
 		AddMovementInput(GetActorForwardVector(), Forward);
 	}
