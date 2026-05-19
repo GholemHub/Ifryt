@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "IfrytCharacter.h"
 #include "Animation/AnimInstance.h"
@@ -9,6 +9,7 @@
 #include "InputActionValue.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Ifryt.h"
+#include "Kismet/GameplayStatics.h"
 
 AIfrytCharacter::AIfrytCharacter()
 {
@@ -111,8 +112,16 @@ void AIfrytCharacter::DoMove(float Right, float Forward)
 
 void AIfrytCharacter::DoJumpStart()
 {
+	// Only play sound if the character can actually jump
+	bool bCanPlayJumpSound = CanJump() || JumpCurrentCount < JumpMaxCount;
+
 	// pass Jump to the character
 	Jump();
+
+	if (JumpSound && bCanPlayJumpSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, JumpSound, GetActorLocation());
+	}
 }
 
 void AIfrytCharacter::DoJumpEnd()

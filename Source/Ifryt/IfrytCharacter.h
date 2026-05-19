@@ -45,6 +45,10 @@ class AIfrytCharacter : public ACharacter
 
 protected:
 
+	/** Sound to play when jumping */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sound")
+	USoundBase* JumpSound;
+
 	/** Jump Input Action */
 	UPROPERTY(EditAnywhere, Category ="Input")
 	UInputAction* JumpAction;
